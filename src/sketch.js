@@ -880,13 +880,20 @@ function drawPlayer() {
   translate(player.x, player.y);
 
   if (player.dying) {
-    // Animación de Knock-Out del sprite sheet del jugador
-    // Knock-Out row empieza en y≈145, cada frame 16x24, padX≈18
+    // Animación de Knock-Out - coordenadas exactas por frame (x, y, w, h)
+    const koFrames = [
+      { x:   3, y: 160, w: 15, h: 23 }, // frame 1
+      { x:  20, y: 160, w: 16, h: 23 }, // frame 2
+      { x:  37, y: 160, w: 15, h: 23 }, // frame 3
+      { x:  54, y: 160, w: 15, h: 23 }, // frame 4
+      { x:  71, y: 160, w: 15, h: 23 }, // frame 5
+      { x:  88, y: 160, w: 15, h: 23 }, // frame 6
+      { x: 105, y: 160, w: 15, h: 23 }, // frame 7
+    ];
     let koFrame = constrain(player.deathFrame, 0, 6);
-    let sx = 3 + (koFrame * 18);
-    let sy = 145;
+    let f = koFrames[koFrame];
 
-    image(imgPlayer, 4, -8, 32, 48, sx, sy, 16, 24);
+    image(imgPlayer, 4, -8, 32, 48, f.x, f.y, f.w, f.h);
   } else {
     // Parpadeo de invencibilidad
     if (player.invincible && frameCount % 6 < 3) {
