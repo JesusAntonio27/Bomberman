@@ -701,16 +701,21 @@ function updateEnemies() {
 /**
  * Dibuja todos los enemigos con animacion ping-pong y sprites direccionales.
  *
- * Sprites (PNG horizontal, cada frame ocupa 16px de ancho):
- *   imgBalloon — 192x24 px: 12 frames, todos la misma vista
- *   imgOnil    — 320x16 px: 20 frames: [0-9]=DOWN, [10-13]=UP, [14-19]=LR
- *   imgMinvo   —  96x24 px:  6 frames, vista frontal (DOWN), flip para LEFT
+ * ONIL (imgOnil — 320x16 px, stride 16px):
+ *   Frames [0-9]  = DOWN  (10 frames, y=176 en sheet original)
+ *   Frames [10-13]= UP    ( 4 frames, y=194)
+ *   Frames [14-19]= LR    ( 6 frames, y=194) — flip si LEFT
  *
- * Direccionalidad:
- *   balloon/minvo: flip horizontal (translate+scale) si dir===LEFT
- *   onil: selecciona rango de frames segun dir; flip si LEFT dentro del rango LR
+ * MINVO (imgMinvo — 192x32 px, stride 32px):
+ *   Frames [0-1] = LR    (izq/der — flip si LEFT)
+ *   Frames [2-3] = DOWN
+ *   Frames [4-5] = UP
+ *   Fuente: coordenadas exactas medidas en Paint (32x32 px cada frame)
  *
- * Transformaciones 2D: TRASLACION (posicion) + ESCALAMIENTO (flip L/R)
+ * BALLOON (imgBalloon — 192x24 px, stride 16px):
+ *   12 frames, unica vista, flip si LEFT
+ *
+ * Transformaciones 2D: TRASLACION + ESCALAMIENTO (flip horizontal)
  */
 function drawEnemies() {
   for (let e of enemies) {
@@ -719,34 +724,40 @@ function drawEnemies() {
     translate(e.x, e.y);
 
     if (e.type === 'balloon') {
-      // ── Balloon: 12 frames, ping-pong, flip para LEFT ──────────────────
+      // 12 frames ping-pong, misma vista, flip para LEFT
       let f = pingPong(e.animTick, 12);
       if (e.dir === 'LEFT') { translate(CELL, 0); scale(-1, 1); }
       image(imgBalloon, 4, -8, 32, 48,  f * 16, 0, 16, 24);
 
     } else if (e.type === 'onil') {
-      // ── Onil: frames por direccion + ping-pong interno ──────────────────
-      // Rangos en la tira: DOWN=[0-9], UP=[10-13], LR=[14-19]
+      // Frames direccionales: DOWN=[0-9], UP=[10-13], LR=[14-19]
       let startF, countF, doFlip = false;
-      if      (e.dir === 'DOWN')  { startF = 0;  countF = 10; }
-      else if (e.dir === 'UP')    { startF = 10; countF = 4;  }
-      else                        { startF = 14; countF = 6;  doFlip = (e.dir === 'LEFT'); }
+      if      (e.dir === 'DOWN') { startF = 0;  countF = 10; }
+      else if (e.dir === 'UP')   { startF = 10; countF = 4;  }
+      else                       { startF = 14; countF = 6;  doFlip = (e.dir === 'LEFT'); }
 
       let f = startF + pingPong(e.animTick, countF);
       if (doFlip) { translate(CELL, 0); scale(-1, 1); }
       image(imgOnil, 0, 0, CELL, CELL,  f * 16, 0, 16, 16);
 
     } else if (e.type === 'minvo') {
-      // ── Minvo: 6 frames, ping-pong, flip para LEFT ──────────────────────
-      let f = pingPong(e.animTick, 6);
-      if (e.dir === 'LEFT') { translate(CELL, 0); scale(-1, 1); }
-      image(imgMinvo, 4, -8, 32, 48,  f * 16, 0, 16, 24);
+      // Frames direccionales reales (32x32 px): LR=[0-1], DOWN=[2-3], UP=[4-5]
+      // Stride = 32px en la tira horizontal
+      let startF, doFlip = false;
+      if      (e.dir === 'DOWN')  { startF = 2; }
+      else if (e.dir === 'UP')    { startF = 4; }
+      else                        { startF = 0; doFlip = (e.dir === 'LEFT'); }
+
+      let f = startF + pingPong(e.animTick, 2);  // 2 frames por direccion
+      if (doFlip) { translate(CELL, 0); scale(-1, 1); }
+      // 32x32 fuente → dibujado a CELL x CELL (40x40) en pantalla
+      image(imgMinvo, 0, 0, CELL, CELL,  f * 32, 0, 32, 32);
 
       // Efecto panico: parpadeo rojo rapido
       if (frameCount < e.panicEnd && frameCount % 4 < 2) {
         fill(255, 0, 0, 80);
         noStroke();
-        rect(0, -8, CELL, CELL + 8);
+        rect(0, 0, CELL, CELL);
       }
     }
 
