@@ -118,24 +118,25 @@ function initGame() {
 }
 
 /**
- * Función genérica para limpiar fondos de sprite sheets
- * Toma el color del primer píxel [0,0] como clave de transparencia.
+ * Elimina el fondo de un sprite sheet usando el pixel (0,0) como clave.
+ * Para imgEnemies el fondo exacto es cian puro (0, 255, 255).
+ * Usa tolerancia amplia (30) para cubrir variaciones de compresion GIF.
  */
 function removeBackground(img) {
   img.loadPixels();
   if (!img.pixels || img.pixels.length === 0) return;
-  
+
   let bgR = img.pixels[0];
   let bgG = img.pixels[1];
   let bgB = img.pixels[2];
-  
+
   for (let i = 0; i < img.pixels.length; i += 4) {
     let r = img.pixels[i];
     let g = img.pixels[i+1];
     let b = img.pixels[i+2];
-    
-    // Tolerancia baja para color sólido de fondo
-    if (abs(r - bgR) < 10 && abs(g - bgG) < 10 && abs(b - bgB) < 10) {
+
+    // Tolerancia amplia para GIFs con dithering/compresion
+    if (abs(r - bgR) < 30 && abs(g - bgG) < 30 && abs(b - bgB) < 30) {
       img.pixels[i+3] = 0;
     }
   }
@@ -479,9 +480,9 @@ function drawExplosions() {
  */
 function spawnEnemies() {
   let types = [
-    { type: 'balloon', speed: 1.5, baseSpriteRow: 0 },
-    { type: 'onil',    speed: 2,   baseSpriteRow: 4 },
-    { type: 'minvo',   speed: 2,   baseSpriteRow: 6, nextPanic: 180, panicEnd: 0, lastDc: 1, lastDr: 0 }
+    { type: 'balloon', speed: 1.5 },
+    { type: 'onil',    speed: 2   },
+    { type: 'minvo',   speed: 2, nextPanic: 180, panicEnd: 0, lastDc: 1, lastDr: 0 }
   ];
   
   for (let t of types) {
@@ -493,9 +494,9 @@ function spawnEnemies() {
         x: pos.col * CELL, y: pos.row * CELL,
         targetCol: pos.col, targetRow: pos.row,
         animFrame: 0,
-        animTimer: 0,
+        isMoving: false,
         alive: true,
-        dir: 'DOWN' // Misma lógica direccional que el jugador
+        dir: 'DOWN'
       });
     }
   }
@@ -550,28 +551,38 @@ function applyEnemyDirection(e, dc, dr) {
 }
 
 /**
- * Movimiento base cell-based para todos los enemigos
+ * Movimiento base cell-based para todos los enemigos.
+ * Espejo exacto del jugador: snap a la celda destino, luego elige siguiente.
+ * isMoving se activa mientras viaja entre celdas (permite interpolacion suave).
  */
 function moveEnemy(e) {
   let targetX = e.targetCol * CELL;
   let targetY = e.targetRow * CELL;
-  
+
   if (abs(e.x - targetX) < e.speed && abs(e.y - targetY) < e.speed) {
+    // Snap exacto al centro de la celda
     e.x = targetX;
     e.y = targetY;
     e.col = e.targetCol;
     e.row = e.targetRow;
-    
-    // Cada tipo elige su siguiente celda de forma diferente
+    e.isMoving = false;
+
+    // Elegir siguiente celda segun personalidad
     if (e.type === 'balloon') chooseNextCellBalloon(e);
     if (e.type === 'onil')    chooseNextCellOnil(e);
     if (e.type === 'minvo')   chooseNextCellMinvo(e);
+
+    // Si el destino cambio, activar movimiento
+    if (e.targetCol !== e.col || e.targetRow !== e.row) {
+      e.isMoving = true;
+    }
   } else {
-    // Seguir moviéndose hacia la celda destino
-    if (e.x < targetX) e.x += e.speed;
-    else if (e.x > targetX) e.x -= e.speed;
-    if (e.y < targetY) e.y += e.speed;
-    else if (e.y > targetY) e.y -= e.speed;
+    // Interpolar suavemente hacia la celda destino (igual que el jugador)
+    e.isMoving = true;
+    if (e.x < targetX) e.x = min(e.x + e.speed, targetX);
+    else if (e.x > targetX) e.x = max(e.x - e.speed, targetX);
+    if (e.y < targetY) e.y = min(e.y + e.speed, targetY);
+    else if (e.y > targetY) e.y = max(e.y - e.speed, targetY);
   }
 }
 
@@ -647,44 +658,59 @@ function chooseNextCellMinvo(e) {
 function updateEnemies() {
   for (let e of enemies) {
     moveEnemy(e);
-    // Animación de caminata direccional
-    e.animTimer++;
-    if (e.animTimer >= 10) {
-      e.animTimer = 0;
-      e.animFrame = (e.animFrame + 1) % 3;
+
+    // Animacion de caminata: igual que el jugador (solo anima cuando se mueve)
+    if (e.isMoving) {
+      if (frameCount % 8 === 0) {
+        e.animFrame = (e.animFrame + 1) % 3;
+      }
+    } else {
+      e.animFrame = 0;
     }
   }
 }
 
 /**
- * Dibuja todos los enemigos usando sprites de enemies_items_sheet.gif
- * Cada frame: 16x16px, 3 frames de walk por enemigo, 4 direcciones.
- * Orden direccional: DOWN(+0), RIGHT(+1), UP(+2), LEFT(+3) filas de 16px.
+ * Dibuja todos los enemigos con coordenadas de sprite exactas del sheet.
+ *
+ * Coordenadas verificadas pixel-a-pixel sobre enemies_items_sheet.gif (350x367 px):
+ *   Balloon (bomba roja): sy=2,  sh=24, 3 walk frames  → sx = 2 + f*18
+ *   Onil    (bola azul):  sy=194, sh=16, 3 walk frames  → sx = 2 + f*18
+ *   Minvo   (robot verde):sy=142, sh=24, 3 walk frames  → sx = 2 + f*18
+ *
+ * Todos los sprites miden 16px de ancho con 2px de separacion (stride=18).
+ * El fondo cian (0,255,255) ya fue eliminado por removeBackground() en initGame.
+ * Estos enemigos no tienen sprites direccionales — la silueta es la misma
+ * en todas las direcciones (como Balloon y Onil en el Bomberman original).
  */
 function drawEnemies() {
-  const dirOffsets = { 'DOWN': 0, 'RIGHT': 1, 'UP': 2, 'LEFT': 3 };
-  
   for (let e of enemies) {
     push();
-    // Transformación 2D: Traslación para posicionar al enemigo
     translate(e.x, e.y);
-    
-    // Recorte del sprite sheet adaptado a la lógica de movimiento (dirección)
-    let offset = dirOffsets[e.dir] || 0;
-    let sx = e.animFrame * 16;
-    let sy = (e.baseSpriteRow + offset) * 16;
-    
-    image(imgEnemies, 0, 0, CELL, CELL, sx, sy, 16, 16);
-    
-    // Efecto pánico para Minvo
-    if (e.type === 'minvo' && frameCount < e.panicEnd) {
-      // Parpadeo rápido en pánico
-      if (frameCount % 4 < 2) {
+
+    // sx comun: stride de 18px con margen inicial de 2px
+    let sx = 2 + e.animFrame * 18;
+
+    if (e.type === 'balloon') {
+      // Bomba roja con helice — 16x24 px en sheet → dibujado como 32x48 (igual que jugador)
+      image(imgEnemies, 4, -8, 32, 48, sx, 2, 16, 24);
+
+    } else if (e.type === 'onil') {
+      // Bola azul — 16x16 px en sheet → cuadrado CELL x CELL
+      image(imgEnemies, 0, 0, CELL, CELL, sx, 194, 16, 16);
+
+    } else if (e.type === 'minvo') {
+      // Robot verde — 16x24 px en sheet → dibujado como 32x48 (igual que jugador)
+      image(imgEnemies, 4, -8, 32, 48, sx, 142, 16, 24);
+
+      // Efecto panico: parpadeo rojo rapido
+      if (frameCount < e.panicEnd && frameCount % 4 < 2) {
         fill(255, 0, 0, 80);
+        noStroke();
         rect(0, 0, CELL, CELL);
       }
     }
-    
+
     pop();
   }
 }
