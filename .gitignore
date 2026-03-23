@@ -1,0 +1,22 @@
+# Windows thumbnail cache
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+
+# Folder config file
+Desktop.ini
+
+# Recycled folder
+$RECYCLE.BIN/
+
+# VS Code
+.vscode/
+
+# Node (in case it's used later)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# MacDS Store
+.DS_Store
