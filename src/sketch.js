@@ -699,8 +699,7 @@ function updateEnemies() {
  *   imgMinvo   —  96x24 px:  6 frames, vista frontal (DOWN), flip para LEFT
  *
  * Direccionalidad:
- *   minvo: flip horizontal (translate+scale) si dir===LEFT
- *   balloon/onil: selecciona rango de frames segun dir; flip si RIGHT dentro del rango LR
+ *   balloon/onil/minvo: selecciona rango de frames segun dir; flip si RIGHT dentro del rango LR
  *
  * Transformaciones 2D: TRASLACION + ESCALAMIENTO (flip horizontal)
  */
@@ -734,10 +733,16 @@ function drawEnemies() {
       image(imgOnil, 0, 0, CELL, CELL, f * 16, 0, 16, 16);
 
     } else if (e.type === 'minvo') {
-      // ── Minvo: 6 frames, ping-pong, flip para LEFT ──────────────────────
-      let f = pingPong(e.animTick, 6);
-      if (e.dir === 'LEFT') { translate(CELL, 0); scale(-1, 1); }
-      image(imgMinvo, 4, -8, 32, 48, f * 16, 0, 16, 24);
+      // ── Minvo: frames direccionales + ping-pong interno ────────────────
+      // Rangos en la tira (32x32px): LR=[0-1], DOWN=[2-3], UP=[4-5]
+      let startF, countF, doFlip = false;
+      if (e.dir === 'DOWN') { startF = 2; countF = 2; }
+      else if (e.dir === 'UP') { startF = 4; countF = 2; }
+      else { startF = 0; countF = 2; doFlip = (e.dir === 'RIGHT'); }
+
+      let f = startF + pingPong(e.animTick, countF);
+      if (doFlip) { translate(CELL, 0); scale(-1, 1); }
+      image(imgMinvo, 0, 0, CELL, CELL, f * 32, 0, 32, 32);
 
       // Efecto panico: parpadeo rojo rapido
       if (frameCount < e.panicEnd && frameCount % 4 < 2) {
