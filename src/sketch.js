@@ -45,6 +45,8 @@ let player = {
 
 // Assets específicos
 let imgPlayer, imgEnemies, imgTiles, imgItems, imgBombs;
+// Sprites limpios por tipo de enemigo (extraidos con flood-fill, fondo transparente)
+let imgBalloon, imgOnil, imgMinvo;
 
 function preload() {
   // Carga de hojas de sprites originales
@@ -53,6 +55,10 @@ function preload() {
   imgTiles = loadImage('../assets/tileset_sheet.png');
   imgItems = loadImage('../assets/items_sheet.png');
   imgBombs = loadImage('../assets/Saturn - Saturn Bomberman - Bombs and Explosions.png');
+  // Sprites de enemigos con fondo transparente (3 frames de walk en tira horizontal)
+  imgBalloon = loadImage('../assets/balloon_walk.png'); // 48x24 px — 3 frames 16x24
+  imgOnil    = loadImage('../assets/onil_walk.png');    // 48x16 px — 3 frames 16x16
+  imgMinvo   = loadImage('../assets/minvo_walk.png');   // 48x24 px — 3 frames 16x24
 
   // Carga de sonidos
   sounds.bombPlace = loadSound('../assets/bomb_place.wav');
@@ -94,8 +100,7 @@ function initGame() {
   player.deathFrame = 0;
   player.deathStartAt = 0;
   
-  // Limpiar fondos de diferentes sprites
-  removeBackground(imgEnemies);
+  // Limpiar fondos de sprites que lo necesitan
   removeBackground(imgBombs);
   removeBackground(imgTiles);
   
@@ -671,43 +676,51 @@ function updateEnemies() {
 }
 
 /**
- * Dibuja todos los enemigos con coordenadas de sprite exactas del sheet.
+ * Dibuja todos los enemigos. Mismo patron que drawPlayer:
+ *   push() → translate(e.x, e.y) → [flip si LEFT] → image() → pop()
  *
- * Coordenadas verificadas pixel-a-pixel sobre enemies_items_sheet.gif (350x367 px):
- *   Balloon (bomba roja): sy=2,  sh=24, 3 walk frames  → sx = 2 + f*18
- *   Onil    (bola azul):  sy=194, sh=16, 3 walk frames  → sx = 2 + f*18
- *   Minvo   (robot verde):sy=142, sh=24, 3 walk frames  → sx = 2 + f*18
+ * Sprites limpios (PNG con fondo transparente, tira de 3 frames cada 16px):
+ *   imgBalloon: 48x24 px — frame i en sx = i*16, sy = 0, sw=16, sh=24
+ *   imgOnil:    48x16 px — frame i en sx = i*16, sy = 0, sw=16, sh=16
+ *   imgMinvo:   48x24 px — frame i en sx = i*16, sy = 0, sw=16, sh=24
  *
- * Todos los sprites miden 16px de ancho con 2px de separacion (stride=18).
- * El fondo cian (0,255,255) ya fue eliminado por removeBackground() en initGame.
- * Estos enemigos no tienen sprites direccionales — la silueta es la misma
- * en todas las direcciones (como Balloon y Onil en el Bomberman original).
+ * Direccionalidad:
+ *   LEFT  → flip horizontal con translate(CELL,0) + scale(-1,1)
+ *   RIGHT, DOWN, UP → normal (estos enemigos no tienen filas por direccion
+ *                     en el sheet, misma silueta en todas las vistas)
  */
 function drawEnemies() {
   for (let e of enemies) {
     push();
+    // TRANSFORMACION 2D: Traslacion — posiciona al enemigo en el mapa
     translate(e.x, e.y);
 
-    // sx comun: stride de 18px con margen inicial de 2px
-    let sx = 2 + e.animFrame * 18;
+    // TRANSFORMACION 2D: Escalamiento — flip horizontal para ir a la izquierda
+    if (e.dir === 'LEFT') {
+      translate(CELL, 0);
+      scale(-1, 1);
+    }
+
+    // Frame actual en la tira horizontal: sx = animFrame * 16
+    let sx = e.animFrame * 16;
 
     if (e.type === 'balloon') {
-      // Bomba roja con helice — 16x24 px en sheet → dibujado como 32x48 (igual que jugador)
-      image(imgEnemies, 4, -8, 32, 48, sx, 2, 16, 24);
+      // 16x24 sprite → dibujado a 32x48 con offset -8 en Y, igual que el jugador
+      image(imgBalloon, 4, -8, 32, 48, sx, 0, 16, 24);
 
     } else if (e.type === 'onil') {
-      // Bola azul — 16x16 px en sheet → cuadrado CELL x CELL
-      image(imgEnemies, 0, 0, CELL, CELL, sx, 194, 16, 16);
+      // 16x16 sprite → dibujado centrado en la celda
+      image(imgOnil, 0, 0, CELL, CELL, sx, 0, 16, 16);
 
     } else if (e.type === 'minvo') {
-      // Robot verde — 16x24 px en sheet → dibujado como 32x48 (igual que jugador)
-      image(imgEnemies, 4, -8, 32, 48, sx, 142, 16, 24);
+      // 16x24 sprite → mismo tratamiento que balloon
+      image(imgMinvo, 4, -8, 32, 48, sx, 0, 16, 24);
 
       // Efecto panico: parpadeo rojo rapido
       if (frameCount < e.panicEnd && frameCount % 4 < 2) {
         fill(255, 0, 0, 80);
         noStroke();
-        rect(0, 0, CELL, CELL);
+        rect(0, -8, CELL, CELL + 8);
       }
     }
 
