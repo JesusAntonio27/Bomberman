@@ -21,7 +21,7 @@ let gameState = 'PLAYING'; // 'PLAYING', 'GAME_OVER', 'WIN'
 
 // Jugador - Movimiento Casilla por Casilla y Animaciones
 let player = {
-  x: CELL, 
+  x: CELL,
   y: CELL,
   targetX: CELL,
   targetY: CELL,
@@ -45,35 +45,27 @@ let player = {
 
 // Assets específicos
 let imgPlayer, imgEnemies, imgTiles, imgItems, imgBombs;
+let imgBalloon, imgOnil, imgMinvo;
 // Sprites limpios por tipo y direccion (fondo transparente, generados con flood-fill)
 let imgSprites = {};  // imgSprites['balloon_down'], ['balloon_right'], etc.
 
 function preload() {
   imgPlayer = loadImage('../assets/SNES - Super Bomberman - Playable Characters - Bomberman.png');
   imgEnemies = loadImage('../assets/enemies_items_sheet.gif');
-  imgTiles   = loadImage('../assets/tileset_sheet.png');
-  imgItems   = loadImage('../assets/items_sheet.png');
-  imgBombs   = loadImage('../assets/Saturn - Saturn Bomberman - Bombs and Explosions.png');
+  imgTiles = loadImage('../assets/tileset_sheet.png');
+  imgItems = loadImage('../assets/items_sheet.png');
+  imgBombs = loadImage('../assets/Saturn - Saturn Bomberman - Bombs and Explosions.png');
 
-  // Balloon: tiras de 3 frames 16×24 por direccion
-  imgSprites['balloon_down']  = loadImage('../assets/balloon_down.png');
-  imgSprites['balloon_right'] = loadImage('../assets/balloon_right.png');
-  imgSprites['balloon_up']    = loadImage('../assets/balloon_up.png');
-
-  // Minvo (robot): tiras de 2 frames 16×28 por direccion
-  imgSprites['minvo_down']    = loadImage('../assets/minvo_down.png');
-  imgSprites['minvo_right']   = loadImage('../assets/minvo_right.png');
-  imgSprites['minvo_up']      = loadImage('../assets/minvo_up.png');
-
-  // Onil (bola azul): tiras con distinto numero de frames 16×16
-  //   down → 10 frames (ping-pong),  up → 4 frames,  lr → 6 frames
-  imgSprites['onil_down']     = loadImage('../assets/onil_down.png');
-  imgSprites['onil_up']       = loadImage('../assets/onil_up.png');
-  imgSprites['onil_lr']       = loadImage('../assets/onil_lr.png');
+  // Balloon: tira horizontal de frames 16×24
+  imgBalloon = loadImage('../assets/balloon_walk.png');
+  // Minvo (robot): tira horizontal de frames 16×28
+  imgMinvo = loadImage('../assets/minvo_walk.png');
+  // Onil (bola azul): tira horizontal de frames 16×16
+  imgOnil = loadImage('../assets/onil_walk.png');
 
   sounds.bombPlace = loadSound('../assets/bomb_place.wav');
   sounds.explosion = loadSound('../assets/explosion.wav');
-  sounds.death     = loadSound('../assets/death.wav');
+  sounds.death = loadSound('../assets/death.wav');
 }
 
 function setup() {
@@ -89,7 +81,7 @@ function initGame() {
   explosions = [];
   enemies = [];
   gameState = 'PLAYING';
-  
+
   // Reset player
   player.x = CELL;
   player.y = CELL;
@@ -109,25 +101,25 @@ function initGame() {
   player.dying = false;
   player.deathFrame = 0;
   player.deathStartAt = 0;
-  
+
   // Limpiar fondos de sprites que lo necesitan
   removeBackground(imgBombs);
   removeBackground(imgTiles);
-  
+
   // Chroma key específico y agresivo del sprite del jugador
   imgPlayer.loadPixels();
   for (let i = 0; i < imgPlayer.pixels.length; i += 4) {
     let r = imgPlayer.pixels[i];
-    let g = imgPlayer.pixels[i+1];
-    let b = imgPlayer.pixels[i+2];
+    let g = imgPlayer.pixels[i + 1];
+    let b = imgPlayer.pixels[i + 2];
     let isGreen = (g > r + 10) && (g > b - 20) && (r < 120);
-    let isCyan  = (g > 80) && (b > 80) && (r < 80);
+    let isCyan = (g > 80) && (b > 80) && (r < 80);
     if (isGreen || isCyan) {
-      imgPlayer.pixels[i+3] = 0;
+      imgPlayer.pixels[i + 3] = 0;
     }
   }
   imgPlayer.updatePixels();
-  
+
   // Spawn de enemigos
   spawnEnemies();
 }
@@ -147,27 +139,27 @@ function removeBackground(img) {
 
   for (let i = 0; i < img.pixels.length; i += 4) {
     let r = img.pixels[i];
-    let g = img.pixels[i+1];
-    let b = img.pixels[i+2];
+    let g = img.pixels[i + 1];
+    let b = img.pixels[i + 2];
 
     // Tolerancia amplia para GIFs con dithering/compresion
     if (abs(r - bgR) < 30 && abs(g - bgG) < 30 && abs(b - bgB) < 30) {
-      img.pixels[i+3] = 0;
+      img.pixels[i + 3] = 0;
     }
   }
   img.updatePixels();
 }
 
 function draw() {
-  background(34, 139, 34); 
-  
+  background(34, 139, 34);
+
   if (gameState === 'PLAYING') {
     drawMap();
     updateBombs();
     updateExplosions();
     drawBombs();
     drawExplosions();
-    
+
     if (!player.dying) {
       updatePlayer();
       checkPlayerExplosionCollision();
@@ -175,22 +167,22 @@ function draw() {
       updateDeathAnimation();
     }
     drawPlayer();
-    
+
     updateEnemies();
     drawEnemies();
     checkEnemyExplosionCollision();
-    
+
     if (!player.dying) {
       checkEnemyPlayerCollision();
     }
-    
+
     // Verificar victoria
     if (enemies.length === 0) {
       gameState = 'WIN';
     }
-    
+
     drawHUD();
-    
+
   } else if (gameState === 'GAME_OVER') {
     drawMap();
     drawBombs();
@@ -198,7 +190,7 @@ function draw() {
     drawEnemies();
     drawHUD();
     drawGameOver();
-    
+
   } else if (gameState === 'WIN') {
     drawMap();
     drawHUD();
@@ -249,13 +241,13 @@ function drawTile(x, y, type) {
   translate(x, y);
   let sx = 0, sy = 0;
   if (type === 1) {
-    sx = 32; sy = 0; 
+    sx = 32; sy = 0;
     image(imgTiles, 0, 0, CELL, CELL, sx, sy, 16, 16);
   } else if (type === 2) {
-    sx = 0; sy = 48; 
+    sx = 0; sy = 48;
     image(imgTiles, 0, 0, CELL, CELL, sx, sy, 16, 16);
   } else {
-    sx = 64; sy = 0; 
+    sx = 64; sy = 0;
     image(imgTiles, 0, 0, CELL, CELL, sx, sy, 16, 16);
   }
   pop();
@@ -269,18 +261,18 @@ function updatePlayer() {
   if (player.invincible && frameCount > player.invincibleUntil) {
     player.invincible = false;
   }
-  
+
   if (abs(player.x - player.targetX) < player.speed && abs(player.y - player.targetY) < player.speed) {
     player.x = player.targetX;
     player.y = player.targetY;
     player.col = player.targetCol;
     player.row = player.targetRow;
     player.isMoving = false;
-    
+
     let nextCol = player.col;
     let nextRow = player.row;
     let intent = false;
-    
+
     if (keyIsDown(LEFT_ARROW)) {
       nextCol--;
       player.dir = 'LEFT';
@@ -298,7 +290,7 @@ function updatePlayer() {
       player.dir = 'DOWN';
       intent = true;
     }
-    
+
     if (intent) {
       if (!isSolid(nextCol, nextRow)) {
         player.targetCol = nextCol;
@@ -315,13 +307,13 @@ function updatePlayer() {
       player.animCycle = 0;
     }
   }
-  
+
   if (player.isMoving) {
     if (player.x < player.targetX) player.x += player.speed;
     else if (player.x > player.targetX) player.x -= player.speed;
     if (player.y < player.targetY) player.y += player.speed;
     else if (player.y > player.targetY) player.y -= player.speed;
-    
+
     if (frameCount % 6 === 0) {
       player.animCycle = (player.animCycle + 1) % 4;
     }
@@ -343,15 +335,15 @@ function keyPressed() {
     }
     return;
   }
-  
+
   if (key === ' ' || key === 'Spacebar') {
     // LÍMITE DE 1 BOMBA A LA VEZ
     if (bombs.length >= 1) return;
     if (player.dying) return;
-    
+
     let col = round(player.x / CELL);
     let row = round(player.y / CELL);
-    
+
     if (gameMap[row][col] === 0 || gameMap[row][col] === 4) {
       bombs.push({ col: col, row: row, placedAt: frameCount });
       gameMap[row][col] = 3;
@@ -376,12 +368,12 @@ function explodeBomb(b) {
   if (sounds.explosion && sounds.explosion.isLoaded && sounds.explosion.isLoaded()) {
     sounds.explosion.play();
   }
-  
-  let cellsAffected = [{col: b.col, row: b.row}];
+
+  let cellsAffected = [{ col: b.col, row: b.row }];
   gameMap[b.row][b.col] = 0;
-  
-  let dirs = [{dc: 0, dr: -1}, {dc: 0, dr: 1}, {dc: -1, dr: 0}, {dc: 1, dr: 0}];
-  
+
+  let dirs = [{ dc: 0, dr: -1 }, { dc: 0, dr: 1 }, { dc: -1, dr: 0 }, { dc: 1, dr: 0 }];
+
   for (let d of dirs) {
     for (let rad = 1; rad <= 2; rad++) {
       let nc = b.col + d.dc * rad;
@@ -391,19 +383,19 @@ function explodeBomb(b) {
       if (type === 1) {
         break;
       } else if (type === 2) {
-        cellsAffected.push({col: nc, row: nr});
+        cellsAffected.push({ col: nc, row: nr });
         break;
       } else if (type === 0 || type === 4 || type === 3) {
-        cellsAffected.push({col: nc, row: nr});
+        cellsAffected.push({ col: nc, row: nr });
       }
     }
   }
-  
+
   explosions.push({
     cells: cellsAffected,
     explodedAt: frameCount
   });
-  
+
   for (let c of cellsAffected) {
     gameMap[c.row][c.col] = 4;
   }
@@ -426,7 +418,7 @@ function updateExplosions() {
 function drawBombs() {
   for (let b of bombs) {
     push();
-    translate(b.col * CELL + CELL/2, b.row * CELL + CELL/2);
+    translate(b.col * CELL + CELL / 2, b.row * CELL + CELL / 2);
     let pulse = map(sin(frameCount * 0.1), -1, 1, 0.9, 1.1);
     scale(pulse);
     let f = floor(frameCount / 8) % 3;
@@ -448,7 +440,7 @@ function drawExplosions() {
     animFrame = constrain(animFrame, 0, 2);
     let xb = FRAME_BASES[animFrame];
     let center = exp.cells[0];
-    
+
     let minCol = center.col, maxCol = center.col;
     let minRow = center.row, maxRow = center.row;
     for (let c of exp.cells) {
@@ -457,12 +449,12 @@ function drawExplosions() {
       if (c.row < minRow) minRow = c.row;
       if (c.row > maxRow) maxRow = c.row;
     }
-    
+
     for (let c of exp.cells) {
       push();
-      translate(c.col * CELL + CELL/2, c.row * CELL + CELL/2);
+      translate(c.col * CELL + CELL / 2, c.row * CELL + CELL / 2);
       let sx = xb + 34, sy = 49;
-      
+
       if (c.col === center.col && c.row === center.row) {
         sx = xb + 34; sy = 49;
       } else if (c.col < center.col) {
@@ -478,7 +470,7 @@ function drawExplosions() {
         if (c.row === maxRow) { sx = xb + 68; sy = 49; rotate(HALF_PI); }
         else { sx = xb + 34; sy = 66; }
       }
-      
+
       imageMode(CENTER);
       image(imgBombs, 0, 0, CELL + 2, CELL + 2, sx, sy, 16, 16);
       pop();
@@ -496,10 +488,10 @@ function drawExplosions() {
 function spawnEnemies() {
   let types = [
     { type: 'balloon', speed: 1.5 },
-    { type: 'onil',    speed: 2   },
-    { type: 'minvo',   speed: 2, nextPanic: 180, panicEnd: 0, lastDc: 1, lastDr: 0 }
+    { type: 'onil', speed: 2 },
+    { type: 'minvo', speed: 2, nextPanic: 180, panicEnd: 0, lastDc: 1, lastDr: 0 }
   ];
-  
+
   for (let t of types) {
     let pos = findFreeCell();
     if (pos) {
@@ -527,7 +519,7 @@ function findFreeCell() {
       if (gameMap[r][c] === 0) {
         let dist = abs(c - 1) + abs(r - 1); // Distancia Manhattan al spawn
         if (dist > 5) {
-          candidates.push({col: c, row: r});
+          candidates.push({ col: c, row: r });
         }
       }
     }
@@ -549,8 +541,8 @@ function isFreeForEnemy(col, row) {
  */
 function getFreeNeighbors(col, row) {
   let dirs = [
-    {dc: 0, dr: -1}, {dc: 0, dr: 1},
-    {dc: -1, dr: 0}, {dc: 1, dr: 0}
+    { dc: 0, dr: -1 }, { dc: 0, dr: 1 },
+    { dc: -1, dr: 0 }, { dc: 1, dr: 0 }
   ];
   return dirs.filter(d => isFreeForEnemy(col + d.dc, row + d.dr));
 }
@@ -584,8 +576,8 @@ function moveEnemy(e) {
 
     // Elegir siguiente celda segun personalidad
     if (e.type === 'balloon') chooseNextCellBalloon(e);
-    if (e.type === 'onil')    chooseNextCellOnil(e);
-    if (e.type === 'minvo')   chooseNextCellMinvo(e);
+    if (e.type === 'onil') chooseNextCellOnil(e);
+    if (e.type === 'minvo') chooseNextCellMinvo(e);
 
     // Si el destino cambio, activar movimiento
     if (e.targetCol !== e.col || e.targetRow !== e.row) {
@@ -615,7 +607,7 @@ function chooseNextCellBalloon(e) {
 function chooseNextCellOnil(e) {
   let options = getFreeNeighbors(e.col, e.row);
   if (options.length === 0) return;
-  
+
   let chosen;
   if (random() < 0.7) {
     let playerCol = round(player.x / CELL);
@@ -701,19 +693,14 @@ function updateEnemies() {
 /**
  * Dibuja todos los enemigos con animacion ping-pong y sprites direccionales.
  *
- * ONIL (imgOnil — 320x16 px, stride 16px):
- *   Frames [0-9]  = DOWN  (10 frames, y=176 en sheet original)
- *   Frames [10-13]= UP    ( 4 frames, y=194)
- *   Frames [14-19]= LR    ( 6 frames, y=194) — flip si LEFT
+ * Sprites (PNG horizontal, cada frame ocupa 16px de ancho):
+ *   imgBalloon — 192x24 px: 12 frames: [0-3]=DOWN, [4-7]=UP, [8-11]=LR
+ *   imgOnil    — 320x16 px: 20 frames: [0-9]=DOWN, [10-13]=UP, [14-19]=LR
+ *   imgMinvo   —  96x24 px:  6 frames, vista frontal (DOWN), flip para LEFT
  *
- * MINVO (imgMinvo — 192x32 px, stride 32px):
- *   Frames [0-1] = LR    (izq/der — flip si LEFT)
- *   Frames [2-3] = DOWN
- *   Frames [4-5] = UP
- *   Fuente: coordenadas exactas medidas en Paint (32x32 px cada frame)
- *
- * BALLOON (imgBalloon — 192x24 px, stride 16px):
- *   12 frames, unica vista, flip si LEFT
+ * Direccionalidad:
+ *   minvo: flip horizontal (translate+scale) si dir===LEFT
+ *   balloon/onil: selecciona rango de frames segun dir; flip si RIGHT dentro del rango LR
  *
  * Transformaciones 2D: TRASLACION + ESCALAMIENTO (flip horizontal)
  */
@@ -724,34 +711,33 @@ function drawEnemies() {
     translate(e.x, e.y);
 
     if (e.type === 'balloon') {
-      // 12 frames ping-pong, misma vista, flip para LEFT
-      let f = pingPong(e.animTick, 12);
-      if (e.dir === 'LEFT') { translate(CELL, 0); scale(-1, 1); }
-      image(imgBalloon, 4, -8, 32, 48,  f * 16, 0, 16, 24);
+      // ── Balloon: frames por direccion + ping-pong interno ──────────────
+      // Rangos en la tira: DOWN=[0-3], UP=[4-7], LR=[8-11]
+      let startF, countF, doFlip = false;
+      if (e.dir === 'DOWN') { startF = 0; countF = 4; }
+      else if (e.dir === 'UP') { startF = 4; countF = 4; }
+      else { startF = 8; countF = 4; doFlip = (e.dir === 'RIGHT'); }
+
+      let f = startF + pingPong(e.animTick, countF);
+      if (doFlip) { translate(CELL, 0); scale(-1, 1); }
+      image(imgBalloon, 4, -8, 32, 48, f * 16, 0, 16, 24);
 
     } else if (e.type === 'onil') {
       // Frames direccionales: DOWN=[0-9], UP=[10-13], LR=[14-19]
       let startF, countF, doFlip = false;
-      if      (e.dir === 'DOWN') { startF = 0;  countF = 10; }
-      else if (e.dir === 'UP')   { startF = 10; countF = 4;  }
-      else                       { startF = 14; countF = 6;  doFlip = (e.dir === 'LEFT'); }
+      if (e.dir === 'DOWN') { startF = 0; countF = 10; }
+      else if (e.dir === 'UP') { startF = 10; countF = 4; }
+      else { startF = 14; countF = 6; doFlip = (e.dir === 'RIGHT'); }
 
       let f = startF + pingPong(e.animTick, countF);
       if (doFlip) { translate(CELL, 0); scale(-1, 1); }
-      image(imgOnil, 0, 0, CELL, CELL,  f * 16, 0, 16, 16);
+      image(imgOnil, 0, 0, CELL, CELL, f * 16, 0, 16, 16);
 
     } else if (e.type === 'minvo') {
-      // Frames direccionales reales (32x32 px): LR=[0-1], DOWN=[2-3], UP=[4-5]
-      // Stride = 32px en la tira horizontal
-      let startF, doFlip = false;
-      if      (e.dir === 'DOWN')  { startF = 2; }
-      else if (e.dir === 'UP')    { startF = 4; }
-      else                        { startF = 0; doFlip = (e.dir === 'LEFT'); }
-
-      let f = startF + pingPong(e.animTick, 2);  // 2 frames por direccion
-      if (doFlip) { translate(CELL, 0); scale(-1, 1); }
-      // 32x32 fuente → dibujado a CELL x CELL (40x40) en pantalla
-      image(imgMinvo, 0, 0, CELL, CELL,  f * 32, 0, 32, 32);
+      // ── Minvo: 6 frames, ping-pong, flip para LEFT ──────────────────────
+      let f = pingPong(e.animTick, 6);
+      if (e.dir === 'LEFT') { translate(CELL, 0); scale(-1, 1); }
+      image(imgMinvo, 4, -8, 32, 48, f * 16, 0, 16, 24);
 
       // Efecto panico: parpadeo rojo rapido
       if (frameCount < e.panicEnd && frameCount % 4 < 2) {
@@ -774,12 +760,12 @@ function drawEnemies() {
  */
 function checkEnemyPlayerCollision() {
   if (player.invincible || player.dying) return;
-  
+
   for (let e of enemies) {
-    let dx = (e.x + CELL/2) - (player.x + CELL/2);
-    let dy = (e.y + CELL/2) - (player.y + CELL/2);
+    let dx = (e.x + CELL / 2) - (player.x + CELL / 2);
+    let dy = (e.y + CELL / 2) - (player.y + CELL / 2);
     let dist = sqrt(dx * dx + dy * dy);
-    
+
     if (dist < CELL * 0.6) {
       playerHit();
       break;
@@ -792,10 +778,10 @@ function checkEnemyPlayerCollision() {
  */
 function checkPlayerExplosionCollision() {
   if (player.invincible || player.dying) return;
-  
+
   let pCol = round(player.x / CELL);
   let pRow = round(player.y / CELL);
-  
+
   if (gameMap[pRow] && gameMap[pRow][pCol] === 4) {
     playerHit();
   }
@@ -809,7 +795,7 @@ function checkEnemyExplosionCollision() {
     let e = enemies[i];
     let eCol = round(e.x / CELL);
     let eRow = round(e.y / CELL);
-    
+
     if (gameMap[eRow] && gameMap[eRow][eCol] === 4) {
       enemies.splice(i, 1);
     }
@@ -821,11 +807,11 @@ function checkEnemyExplosionCollision() {
  */
 function playerHit() {
   player.lives--;
-  
+
   if (sounds.death && sounds.death.isLoaded && sounds.death.isLoaded()) {
     sounds.death.play();
   }
-  
+
   if (player.lives <= 0) {
     // Iniciar animación de muerte y luego Game Over
     player.dying = true;
@@ -844,10 +830,10 @@ function playerHit() {
  */
 function updateDeathAnimation() {
   let elapsed = frameCount - player.deathStartAt;
-  
+
   // 5 frames de knockout, cada uno dura 12 frames de juego = 60 frames total (1 segundo)
   player.deathFrame = floor(elapsed / 12);
-  
+
   if (player.deathFrame >= 7) {
     // Animación terminó
     if (player.lives <= 0) {
@@ -887,14 +873,14 @@ function respawnPlayer() {
 function drawPlayer() {
   push();
   translate(player.x, player.y);
-  
+
   if (player.dying) {
     // Animación de Knock-Out del sprite sheet del jugador
     // Knock-Out row empieza en y≈145, cada frame 16x24, padX≈18
     let koFrame = constrain(player.deathFrame, 0, 6);
     let sx = 3 + (koFrame * 18);
     let sy = 145;
-    
+
     image(imgPlayer, 4, -8, 32, 48, sx, sy, 16, 24);
   } else {
     // Parpadeo de invencibilidad
@@ -902,25 +888,25 @@ function drawPlayer() {
       pop();
       return; // No se dibuja → efecto parpadeo
     }
-    
+
     // Animación normal de caminata
     const startX = 3;
     const startY = 49;
     const padX = 18;
     const padY = 24;
-    
+
     const anims = {
-      'DOWN':  { row: 0, cols: [1, 0, 1, 2] },
+      'DOWN': { row: 0, cols: [1, 0, 1, 2] },
       'RIGHT': { row: 1, cols: [1, 0, 1, 2] },
-      'UP':    { row: 2, cols: [1, 0, 1, 2] },
-      'LEFT':  { row: 3, cols: [1, 0, 1, 2] }
+      'UP': { row: 2, cols: [1, 0, 1, 2] },
+      'LEFT': { row: 3, cols: [1, 0, 1, 2] }
     };
-    
+
     let currentAnim = anims[player.dir];
     let colIndex = currentAnim.cols[player.animCycle];
     let sx = startX + (colIndex * padX);
     let sy = startY + (currentAnim.row * padY);
-    
+
     image(imgPlayer, 4, -8, 32, 48, sx, sy, 16, 24);
   }
   pop();
@@ -939,22 +925,22 @@ function drawHUD() {
   fill(0, 0, 0, 180);
   noStroke();
   rect(0, 0, CELL * COLS, HUD_HEIGHT);
-  
+
   // Texto de vidas
   fill(255);
   textSize(16);
   textAlign(LEFT, CENTER);
   text('❤ x ' + player.lives, 10, HUD_HEIGHT / 2);
-  
+
   // Texto de enemigos restantes
   textAlign(RIGHT, CENTER);
   text('Enemigos: ' + enemies.length, CELL * COLS - 10, HUD_HEIGHT / 2);
-  
+
   // Indicador de bomba disponible
   textAlign(CENTER, CENTER);
   let bombText = bombs.length === 0 ? '💣 Disponible' : '💣 Activa...';
   text(bombText, CELL * COLS / 2, HUD_HEIGHT / 2);
-  
+
   pop();
 }
 
@@ -966,19 +952,19 @@ function drawGameOver() {
   // Overlay oscuro
   fill(0, 0, 0, 150);
   rect(0, 0, width, height);
-  
+
   // Texto animado con escalamiento (Transformación 2D)
   translate(width / 2, height / 2);
   let s = map(sin(frameCount * 0.05), -1, 1, 0.9, 1.1);
   scale(s);
-  
+
   textAlign(CENTER, CENTER);
   textSize(48);
   fill(255, 50, 50);
   stroke(0);
   strokeWeight(3);
   text('GAME OVER', 0, -20);
-  
+
   textSize(18);
   fill(255);
   noStroke();
@@ -993,18 +979,18 @@ function drawVictory() {
   push();
   fill(0, 0, 0, 150);
   rect(0, 0, width, height);
-  
+
   translate(width / 2, height / 2);
   let s = map(sin(frameCount * 0.05), -1, 1, 0.95, 1.05);
   scale(s);
-  
+
   textAlign(CENTER, CENTER);
   textSize(42);
   fill(50, 255, 50);
   stroke(0);
   strokeWeight(3);
   text('¡VICTORIA!', 0, -20);
-  
+
   textSize(18);
   fill(255);
   noStroke();
