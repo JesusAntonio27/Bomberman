@@ -45,25 +45,35 @@ let player = {
 
 // Assets específicos
 let imgPlayer, imgEnemies, imgTiles, imgItems, imgBombs;
-// Sprites limpios por tipo de enemigo (extraidos con flood-fill, fondo transparente)
-let imgBalloon, imgOnil, imgMinvo;
+// Sprites limpios por tipo y direccion (fondo transparente, generados con flood-fill)
+let imgSprites = {};  // imgSprites['balloon_down'], ['balloon_right'], etc.
 
 function preload() {
-  // Carga de hojas de sprites originales
   imgPlayer = loadImage('../assets/SNES - Super Bomberman - Playable Characters - Bomberman.png');
   imgEnemies = loadImage('../assets/enemies_items_sheet.gif');
-  imgTiles = loadImage('../assets/tileset_sheet.png');
-  imgItems = loadImage('../assets/items_sheet.png');
-  imgBombs = loadImage('../assets/Saturn - Saturn Bomberman - Bombs and Explosions.png');
-  // Sprites de enemigos con fondo transparente (3 frames de walk en tira horizontal)
-  imgBalloon = loadImage('../assets/balloon_walk.png'); // 48x24 px — 3 frames 16x24
-  imgOnil    = loadImage('../assets/onil_walk.png');    // 48x16 px — 3 frames 16x16
-  imgMinvo   = loadImage('../assets/minvo_walk.png');   // 48x24 px — 3 frames 16x24
+  imgTiles   = loadImage('../assets/tileset_sheet.png');
+  imgItems   = loadImage('../assets/items_sheet.png');
+  imgBombs   = loadImage('../assets/Saturn - Saturn Bomberman - Bombs and Explosions.png');
 
-  // Carga de sonidos
+  // Balloon: tiras de 3 frames 16×24 por direccion
+  imgSprites['balloon_down']  = loadImage('../assets/balloon_down.png');
+  imgSprites['balloon_right'] = loadImage('../assets/balloon_right.png');
+  imgSprites['balloon_up']    = loadImage('../assets/balloon_up.png');
+
+  // Minvo (robot): tiras de 2 frames 16×28 por direccion
+  imgSprites['minvo_down']    = loadImage('../assets/minvo_down.png');
+  imgSprites['minvo_right']   = loadImage('../assets/minvo_right.png');
+  imgSprites['minvo_up']      = loadImage('../assets/minvo_up.png');
+
+  // Onil (bola azul): tiras con distinto numero de frames 16×16
+  //   down → 10 frames (ping-pong),  up → 4 frames,  lr → 6 frames
+  imgSprites['onil_down']     = loadImage('../assets/onil_down.png');
+  imgSprites['onil_up']       = loadImage('../assets/onil_up.png');
+  imgSprites['onil_lr']       = loadImage('../assets/onil_lr.png');
+
   sounds.bombPlace = loadSound('../assets/bomb_place.wav');
   sounds.explosion = loadSound('../assets/explosion.wav');
-  sounds.death = loadSound('../assets/death.wav');
+  sounds.death     = loadSound('../assets/death.wav');
 }
 
 function setup() {
@@ -498,7 +508,7 @@ function spawnEnemies() {
         col: pos.col, row: pos.row,
         x: pos.col * CELL, y: pos.row * CELL,
         targetCol: pos.col, targetRow: pos.row,
-        animFrame: 0,
+        animTick: 0,   // avanza solo al moverse; drive el calculo ping-pong
         isMoving: false,
         alive: true,
         dir: 'DOWN'
@@ -658,63 +668,79 @@ function chooseNextCellMinvo(e) {
 }
 
 /**
- * Actualiza todos los enemigos
+ * Calcula el frame actual de una animacion ping-pong dado un tick y el total de frames.
+ * Ej: 6 frames → secuencia 0,1,2,3,4,5,4,3,2,1,0,1,2...
+ * Periodo = (n-1)*2 ; dentro del periodo: tick<n → tick ; sino → 2*(n-1) - tick
+ */
+function pingPong(tick, n) {
+  if (n <= 1) return 0;
+  let period = (n - 1) * 2;
+  let t = tick % period;
+  return t < n ? t : period - t;
+}
+
+/**
+ * Actualiza todos los enemigos.
+ * animTick avanza un paso por cada intervalo de 6 frames SOLO cuando se mueve,
+ * igual que animCycle del jugador (que avanza con frameCount%6).
  */
 function updateEnemies() {
   for (let e of enemies) {
     moveEnemy(e);
 
-    // Animacion de caminata: igual que el jugador (solo anima cuando se mueve)
     if (e.isMoving) {
-      if (frameCount % 8 === 0) {
-        e.animFrame = (e.animFrame + 1) % 3;
+      if (frameCount % 6 === 0) {
+        e.animTick = (e.animTick + 1);
       }
     } else {
-      e.animFrame = 0;
+      e.animTick = 0;  // reset al detenerse, igual que animCycle del jugador
     }
   }
 }
 
 /**
- * Dibuja todos los enemigos. Mismo patron que drawPlayer:
- *   push() → translate(e.x, e.y) → [flip si LEFT] → image() → pop()
+ * Dibuja todos los enemigos con animacion ping-pong y sprites direccionales.
  *
- * Sprites limpios (PNG con fondo transparente, tira de 3 frames cada 16px):
- *   imgBalloon: 48x24 px — frame i en sx = i*16, sy = 0, sw=16, sh=24
- *   imgOnil:    48x16 px — frame i en sx = i*16, sy = 0, sw=16, sh=16
- *   imgMinvo:   48x24 px — frame i en sx = i*16, sy = 0, sw=16, sh=24
+ * Sprites (PNG horizontal, cada frame ocupa 16px de ancho):
+ *   imgBalloon — 192x24 px: 12 frames, todos la misma vista
+ *   imgOnil    — 320x16 px: 20 frames: [0-9]=DOWN, [10-13]=UP, [14-19]=LR
+ *   imgMinvo   —  96x24 px:  6 frames, vista frontal (DOWN), flip para LEFT
  *
  * Direccionalidad:
- *   LEFT  → flip horizontal con translate(CELL,0) + scale(-1,1)
- *   RIGHT, DOWN, UP → normal (estos enemigos no tienen filas por direccion
- *                     en el sheet, misma silueta en todas las vistas)
+ *   balloon/minvo: flip horizontal (translate+scale) si dir===LEFT
+ *   onil: selecciona rango de frames segun dir; flip si LEFT dentro del rango LR
+ *
+ * Transformaciones 2D: TRASLACION (posicion) + ESCALAMIENTO (flip L/R)
  */
 function drawEnemies() {
   for (let e of enemies) {
     push();
-    // TRANSFORMACION 2D: Traslacion — posiciona al enemigo en el mapa
+    // TRASLACION: coloca al enemigo en su posicion del mapa
     translate(e.x, e.y);
 
-    // TRANSFORMACION 2D: Escalamiento — flip horizontal para ir a la izquierda
-    if (e.dir === 'LEFT') {
-      translate(CELL, 0);
-      scale(-1, 1);
-    }
-
-    // Frame actual en la tira horizontal: sx = animFrame * 16
-    let sx = e.animFrame * 16;
-
     if (e.type === 'balloon') {
-      // 16x24 sprite → dibujado a 32x48 con offset -8 en Y, igual que el jugador
-      image(imgBalloon, 4, -8, 32, 48, sx, 0, 16, 24);
+      // ── Balloon: 12 frames, ping-pong, flip para LEFT ──────────────────
+      let f = pingPong(e.animTick, 12);
+      if (e.dir === 'LEFT') { translate(CELL, 0); scale(-1, 1); }
+      image(imgBalloon, 4, -8, 32, 48,  f * 16, 0, 16, 24);
 
     } else if (e.type === 'onil') {
-      // 16x16 sprite → dibujado centrado en la celda
-      image(imgOnil, 0, 0, CELL, CELL, sx, 0, 16, 16);
+      // ── Onil: frames por direccion + ping-pong interno ──────────────────
+      // Rangos en la tira: DOWN=[0-9], UP=[10-13], LR=[14-19]
+      let startF, countF, doFlip = false;
+      if      (e.dir === 'DOWN')  { startF = 0;  countF = 10; }
+      else if (e.dir === 'UP')    { startF = 10; countF = 4;  }
+      else                        { startF = 14; countF = 6;  doFlip = (e.dir === 'LEFT'); }
+
+      let f = startF + pingPong(e.animTick, countF);
+      if (doFlip) { translate(CELL, 0); scale(-1, 1); }
+      image(imgOnil, 0, 0, CELL, CELL,  f * 16, 0, 16, 16);
 
     } else if (e.type === 'minvo') {
-      // 16x24 sprite → mismo tratamiento que balloon
-      image(imgMinvo, 4, -8, 32, 48, sx, 0, 16, 24);
+      // ── Minvo: 6 frames, ping-pong, flip para LEFT ──────────────────────
+      let f = pingPong(e.animTick, 6);
+      if (e.dir === 'LEFT') { translate(CELL, 0); scale(-1, 1); }
+      image(imgMinvo, 4, -8, 32, 48,  f * 16, 0, 16, 24);
 
       // Efecto panico: parpadeo rojo rapido
       if (frameCount < e.panicEnd && frameCount % 4 < 2) {
